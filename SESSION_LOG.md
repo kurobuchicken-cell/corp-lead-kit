@@ -19,3 +19,12 @@
   - `enrichSites`の複数社・実運用規模でのライブ確認（歩留まり実測）は未実施。100社程度の`--limit`走行はM3実装後、auto_apo-app側のCLIができてから行う想定。
   - robots.txtの`Crawl-delay`ディレクティブは未対応（`SCRAPE_DELAY_MS`の固定値のみで制御）。
 - 触ったファイル：`package.json` `package-lock.json` `.env.example` `src/index.js` `src/lib/db.js` `src/m2_enrich.js` `src/lib/ai.js` `src/lib/robots.js` `src/lib/scrape.js` `test/m2_enrich.test.js` `test/ai.test.js` `test/robots.test.js` `test/scrape.test.js` `HISTORY.md`
+
+## corp-lead-kit-m3-01（2026-07-01）
+- やったこと：仕様書§3 M3に従い、`filterCompliant(companies, options)` を実装した（企業リサーチ用汎用ライブラリのM1〜M3が完了）。
+- 完了した状態：判定順序は安全側優先で固定（1. optout_notice=true→除外 2. サプレッションリスト一致(法人番号 or email)→除外 3. 同一法人番号／同一ドメインの重複→email保有>form_only>noneの優先度で1社のみ残し他は除外 4. emailなし+form_only→架電リスト／それ以外→除外(no_contact)）。status≠enrichedの会社はM3の判定対象外としてそのまま素通りする。`src/lib/db.js`に`isSuppressed`/`addToSuppressionList`を追加。新規依存ライブラリの追加なし。10件のユニットテストを追加し、`npm test`で全42件（M1/M2含む）パスを確認済み。
+- 残課題・次にやること：
+  - M4以降（auto_apo-app側：下書き生成・Discord承認・送信・返信管理）は別リポジトリ`auto_apo-app`で実装する（corp-lead-kitはこれでM1〜M3完了）。
+  - `filterCompliant`の実データ規模（100社程度）でのライブ確認は、auto_apo-app側のCLIができてから行う想定。
+  - `addToSuppressionList`はM7（返信・配信停止管理）での利用を見込んで用意したが、まだどこからも呼ばれていない（配線は次のフェーズ）。
+- 触ったファイル：`src/index.js` `src/m3_filter.js` `src/lib/compliance.js` `src/lib/db.js` `test/m3_filter.test.js`

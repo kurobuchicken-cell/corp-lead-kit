@@ -103,4 +103,35 @@ function updateEnrichment(db, id, fields) {
   );
 }
 
-module.exports = { openDb, upsertCompany, updateEnrichment, DEFAULT_DB_PATH };
+// corporate_no または email がサプレッションリスト（永久ブロック）に一致するか判定する。
+function isSuppressed(db, { corporate_no, email } = {}) {
+  if (corporate_no) {
+    const row = db.prepare('SELECT 1 FROM suppression WHERE corporate_no = ?').get(corporate_no);
+    if (row) return true;
+  }
+  if (email) {
+    const row = db.prepare('SELECT 1 FROM suppression WHERE email = ?').get(email);
+    if (row) return true;
+  }
+  return false;
+}
+
+// 配信停止・拒否・バウンス等をサプレッションリストに永久登録する（M7で使用予定）。
+function addToSuppressionList(db, { corporate_no = null, email = null, reason }) {
+  const now = new Date().toISOString();
+  const stmt = db.prepare(`
+    INSERT INTO suppression (corporate_no, email, reason, created_at)
+    VALUES (?, ?, ?, ?)
+    RETURNING *
+  `);
+  return stmt.get(corporate_no, email, reason, now);
+}
+
+module.exports = {
+  openDb,
+  upsertCompany,
+  updateEnrichment,
+  isSuppressed,
+  addToSuppressionList,
+  DEFAULT_DB_PATH,
+};
