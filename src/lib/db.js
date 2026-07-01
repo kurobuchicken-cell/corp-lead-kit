@@ -67,4 +67,40 @@ function upsertCompany(db, company) {
   );
 }
 
-module.exports = { openDb, upsertCompany, DEFAULT_DB_PATH };
+// M2の抽出結果をcompaniesに反映する。渡されなかったフィールドは既存値を維持する。
+function updateEnrichment(db, id, fields) {
+  const now = new Date().toISOString();
+  const current = db.prepare('SELECT * FROM companies WHERE id = ?').get(id);
+  if (!current) throw new Error(`updateEnrichment: company id=${id} が見つかりません`);
+
+  const merged = {
+    website_url: fields.website_url !== undefined ? fields.website_url : current.website_url,
+    email: fields.email !== undefined ? fields.email : current.email,
+    contact_type: fields.contact_type !== undefined ? fields.contact_type : current.contact_type,
+    business_summary: fields.business_summary !== undefined ? fields.business_summary : current.business_summary,
+    optout_notice: fields.optout_notice !== undefined ? (fields.optout_notice ? 1 : 0) : current.optout_notice,
+    status: fields.status !== undefined ? fields.status : current.status,
+    exclude_reason: fields.exclude_reason !== undefined ? fields.exclude_reason : current.exclude_reason,
+  };
+
+  const stmt = db.prepare(`
+    UPDATE companies SET
+      website_url = ?, email = ?, contact_type = ?, business_summary = ?,
+      optout_notice = ?, status = ?, exclude_reason = ?, updated_at = ?
+    WHERE id = ?
+    RETURNING *
+  `);
+  return stmt.get(
+    merged.website_url,
+    merged.email,
+    merged.contact_type,
+    merged.business_summary,
+    merged.optout_notice,
+    merged.status,
+    merged.exclude_reason,
+    now,
+    id
+  );
+}
+
+module.exports = { openDb, upsertCompany, updateEnrichment, DEFAULT_DB_PATH };
