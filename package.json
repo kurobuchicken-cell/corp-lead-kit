@@ -1,0 +1,14 @@
+{
+  "name": "corp-lead-kit",
+  "version": "0.1.0",
+  "description": "企業リサーチ用の汎用ライブラリ（母集団取得→サイト巡回・抽出→適格判定・除外）。用途固有の判断は持たない。",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}
