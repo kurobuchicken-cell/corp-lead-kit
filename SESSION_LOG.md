@@ -9,3 +9,4 @@
   - ZIP展開・OpenPGP署名検証は未実装（現状は展開済みCSVを渡す前提）。必要になった時点でライブラリ追加を相談する。
   - 国税庁APIアプリケーションIDの申請（発行2週間〜1か月）はユーザー側の手動タスクとして未着手。
 - 触ったファイル：`package.json` `.gitignore` `src/index.js` `src/m1_collect.js` `src/lib/db.js` `src/lib/csvParser.js` `src/lib/houjinCsvSchema.js` `test/m1_collect.test.js` `test/fixtures/sample_houjin.csv` `test/fixtures/sample_invalid_postal.csv` `HISTORY.md`
+- 追記：GitHubリポジトリ `https://github.com/kurobuchicken-cell/corp-lead-kit.git` を作成し、`main`ブランチにpush済み（ローカルgit設定は本リポジトリのみ user.name=kurobuchicken-cell / user.email=kurobuchicken@gmail.com）。次セッションは `corp-lead-kit-m2-01` としてM2（サイト巡回・抽出、仕様書§3 M2）から開始する。
