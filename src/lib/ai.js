@@ -56,7 +56,7 @@ function parseJsonResponse(text) {
 // ページ本文から (a) 事業内容の要約 (b) 営業お断り表示の有無 (c) 問い合わせ手段 を判定する。
 // onUsage: 呼び出しごとの usage（コスト集計用）を受け取るコールバック（省略可）。
 async function analyzeCompanyPage(client, { name, text, onUsage }) {
-  const truncated = text.slice(0, 12000);
+  const truncated = text.slice(0, 6000);
   const message = await client.messages.create({
     model: MODEL,
     max_tokens: 500,

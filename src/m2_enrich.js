@@ -152,6 +152,12 @@ async function enrichSites(companies, options = {}) {
     // 呼び出し元がresults.lengthや配列アクセスを前提にしている(既存テスト含む)ため配列のまま返し、
     // コスト情報はプロパティとして追加する。
     results.costJpy = costTracker.spentJpy;
+    results.costBreakdown = {
+      tokenJpy: costTracker.tokenJpy,
+      searchJpy: costTracker.searchJpy,
+      searchCount: costTracker.searchCount,
+      callCount: costTracker.callCount,
+    };
     return results;
   } finally {
     db.close();
