@@ -20,7 +20,8 @@ function extractText(message) {
 }
 
 // 社名＋所在地からWeb検索ツールで公式サイトURLを推定する。見つからない場合は null。
-async function findOfficialWebsite(client, { name, address }) {
+// onUsage: 呼び出しごとの usage（コスト集計用）を受け取るコールバック（省略可）。
+async function findOfficialWebsite(client, { name, address, onUsage }) {
   const message = await client.messages.create({
     model: MODEL,
     max_tokens: 300,
@@ -37,6 +38,7 @@ async function findOfficialWebsite(client, { name, address }) {
       },
     ],
   });
+  if (onUsage) onUsage(message.usage);
 
   const text = extractText(message).trim();
   const lastLine = text.split('\n').map((l) => l.trim()).filter(Boolean).pop() || '';
@@ -52,7 +54,8 @@ function parseJsonResponse(text) {
 }
 
 // ページ本文から (a) 事業内容の要約 (b) 営業お断り表示の有無 (c) 問い合わせ手段 を判定する。
-async function analyzeCompanyPage(client, { name, text }) {
+// onUsage: 呼び出しごとの usage（コスト集計用）を受け取るコールバック（省略可）。
+async function analyzeCompanyPage(client, { name, text, onUsage }) {
   const truncated = text.slice(0, 12000);
   const message = await client.messages.create({
     model: MODEL,
@@ -71,6 +74,7 @@ async function analyzeCompanyPage(client, { name, text }) {
       },
     ],
   });
+  if (onUsage) onUsage(message.usage);
 
   const text2 = extractText(message);
   const parsed = parseJsonResponse(text2);

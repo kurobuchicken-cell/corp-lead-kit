@@ -6,6 +6,7 @@ const { openDb, updateEnrichment, DEFAULT_DB_PATH } = require('./lib/db');
 const { isAllowedByRobots, USER_AGENT_TOKEN } = require('./lib/robots');
 const { fetchPageWithFallback, findContactLinks, extractEmails, USER_AGENT } = require('./lib/scrape');
 const { createClient, findOfficialWebsite, analyzeCompanyPage } = require('./lib/ai');
+const { createCostTracker } = require('./lib/cost');
 
 const DEFAULT_DELAY_MS = Number(process.env.SCRAPE_DELAY_MS) || 3000;
 const DEFAULT_CONCURRENCY = 1;
@@ -52,7 +53,11 @@ async function enrichOne(company, ctx) {
   let websiteUrl = company.website_url;
 
   if (!websiteUrl) {
-    websiteUrl = await ctx.findWebsite(ctx.client, { name: company.name, address: company.address });
+    websiteUrl = await ctx.findWebsite(ctx.client, {
+      name: company.name,
+      address: company.address,
+      onUsage: (usage) => ctx.costTracker.add(usage),
+    });
     if (!websiteUrl) {
       return updateEnrichment(ctx.db, company.id, {
         status: 'excluded',
@@ -84,7 +89,11 @@ async function enrichOne(company, ctx) {
   const combinedText = pages.map((p) => p.text).join('\n\n');
   const combinedHtml = pages.map((p) => p.html).join('\n');
   const emails = ctx.extractEmails(`${combinedHtml}\n${combinedText}`);
-  const analysis = await ctx.analyzePage(ctx.client, { name: company.name, text: combinedText });
+  const analysis = await ctx.analyzePage(ctx.client, {
+    name: company.name,
+    text: combinedText,
+    onUsage: (usage) => ctx.costTracker.add(usage),
+  });
 
   const email = emails[0] || null;
   const contactType = email ? 'email' : analysis.contact_type;
@@ -120,6 +129,7 @@ async function enrichSites(companies, options = {}) {
   const needsAiClient = findWebsite === findOfficialWebsite || analyzePage === analyzeCompanyPage;
   const resolvedClient = client || (needsAiClient ? createClient(anthropicApiKey) : undefined);
 
+  const costTracker = options.costTracker || createCostTracker();
   const db = openDb(dbPath);
   const ctx = {
     db,
@@ -132,12 +142,16 @@ async function enrichSites(companies, options = {}) {
     timeoutMs,
     findContactLinks,
     extractEmails,
+    costTracker,
     pace: createPacer(delayMs),
   };
 
   const limit = pLimit(concurrency);
   try {
     const results = await Promise.all(companies.map((company) => limit(() => enrichOne(company, ctx))));
+    // 呼び出し元がresults.lengthや配列アクセスを前提にしている(既存テスト含む)ため配列のまま返し、
+    // コスト情報はプロパティとして追加する。
+    results.costJpy = costTracker.spentJpy;
     return results;
   } finally {
     db.close();
