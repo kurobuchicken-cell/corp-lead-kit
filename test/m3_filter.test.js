@@ -67,17 +67,6 @@ test('emailが無くcontact_type=noneなら除外(no_contact)になる', async (
   fs.rmSync(dbPath, { force: true });
 });
 
-test('営業お断り表示がある場合はemailがあっても除外(optout_notice)になる', async () => {
-  const dbPath = tmpDbPath();
-  const company = seedEnrichedCompany(dbPath, { optout_notice: true });
-
-  const results = filterCompliant([company], { dbPath });
-
-  assert.equal(results[0].status, 'excluded');
-  assert.equal(results[0].exclude_reason, 'optout_notice');
-  fs.rmSync(dbPath, { force: true });
-});
-
 test('サプレッションリストにemailが一致する場合は除外(suppression_list)になる', async () => {
   const dbPath = tmpDbPath();
   const db = openDb(dbPath);
@@ -180,6 +169,10 @@ test('status=enriched以外の会社はそのまま素通りする(M3の判定�
 
 test('複数社を渡した場合、mail_ready/call_list/excludedに正しく仕分けられる', async () => {
   const dbPath = tmpDbPath();
+  const db = openDb(dbPath);
+  addToSuppressionList(db, { corporate_no: '5000000000003', reason: '過去に拒否' });
+  db.close();
+
   const mailReady = seedEnrichedCompany(dbPath, {
     corporate_no: '5000000000001',
     name: 'メール送信可能社',
@@ -195,9 +188,8 @@ test('複数社を渡した場合、mail_ready/call_list/excludedに正しく仕
   });
   const excluded = seedEnrichedCompany(dbPath, {
     corporate_no: '5000000000003',
-    name: '営業お断り社',
+    name: 'サプレッション対象社',
     website_url: 'https://no-thanks.example.com/',
-    optout_notice: true,
   });
 
   const results = filterCompliant([mailReady, callList, excluded], { dbPath });

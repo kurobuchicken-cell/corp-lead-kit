@@ -53,9 +53,36 @@ function parseJsonResponse(text) {
   return JSON.parse(match[0]);
 }
 
-// ページ本文から (a) 事業内容の要約 (b) 営業お断り表示の有無 (c) 問い合わせ手段 を判定する。
+// 営業お断り表示の有無だけを判定する（①コンプラ判定）。お断り表示は通常フッターや問い合わせ欄
+// 付近に短く明記されているため、フルの本文を読ませる必要はなく、軽量な範囲（3,000字）で十分という
+// 想定。ここでお断りと判定されれば、後段②（業務内容確認、コストの高い呼び出し）を丸ごとスキップできる。
 // onUsage: 呼び出しごとの usage（コスト集計用）を受け取るコールバック（省略可）。
-async function analyzeCompanyPage(client, { name, text, onUsage }) {
+async function checkOptOut(client, { name, text, onUsage }) {
+  const truncated = text.slice(0, 3000);
+  const message = await client.messages.create({
+    model: MODEL,
+    max_tokens: 50,
+    messages: [
+      {
+        role: 'user',
+        content:
+          `以下は企業「${name}」の公式サイトの本文（抜粋）です。\n` +
+          `「営業メールお断り」「営業目的の連絡・訪問はご遠慮ください」等の、営業行為を断る旨の表示があるか判定してください。\n` +
+          `あれば "true"、無ければ "false" とだけ答えてください（説明文は不要）。\n\n` +
+          `本文:\n${truncated}`,
+      },
+    ],
+  });
+  if (onUsage) onUsage(message.usage);
+  return { optOut: extractText(message).trim().toLowerCase().includes('true'), usage: message.usage };
+}
+
+// ページ本文から (a) 事業内容の要約 (b) 業種 (c) 痛み仮説の手がかり を判定する（②業務内容確認）。
+// 営業お断り判定は①（checkOptOut）で別途行うため、ここでは含めない
+// （項目を絞ることで、pain_hintに割かれるAIの"労力"を確保する狙い）。
+// M2（全社対象・無料化）ではなく、①を通過した会社だけを対象にする（対象を絞ることでコストを抑える設計）。
+// onUsage: 呼び出しごとの usage（コスト集計用）を受け取るコールバック（省略可）。
+async function qualifyFromPage(client, { name, text, onUsage }) {
   const truncated = text.slice(0, 6000);
   const message = await client.messages.create({
     model: MODEL,
@@ -67,9 +94,8 @@ async function analyzeCompanyPage(client, { name, text, onUsage }) {
           `以下は企業「${name}」の公式サイトの本文です。これを読んで、次のJSON形式のみで回答してください（説明文・コードブロック記号は不要）。\n\n` +
           `{\n` +
           `  "business_summary": "事業内容を2〜3行で要約した文字列",\n` +
-          `  "optout_notice": true または false（「営業メールお断り」「営業目的の連絡・訪問はご遠慮ください」等の表示があればtrue）,\n` +
-          `  "contact_type": "email" または "form_only" または "none"（メールアドレスの記載があればemail、問い合わせフォームのみならform_only、どちらも無ければnone）,\n` +
-          `  "industry": "業種を10字程度の短い言葉で（例: 不動産仲介、機械部品商社、ITコンサルティング）。判断できなければnull"\n` +
+          `  "industry": "業種を10字程度の短い言葉で（例: 不動産仲介、機械部品商社、ITコンサルティング）。判断できなければnull",\n` +
+          `  "pain_hint": "手作業・紙ベース・Excel管理・繰り返し作業になっていそうな業務プロセスの具体的な手がかりを、本文に根拠がある範囲で3行程度の箇条書きで。見当たらなければnull"\n` +
           `}\n\n` +
           `本文:\n${truncated}`,
       },
@@ -81,10 +107,43 @@ async function analyzeCompanyPage(client, { name, text, onUsage }) {
   const parsed = parseJsonResponse(text2);
   return {
     business_summary: typeof parsed.business_summary === 'string' ? parsed.business_summary : null,
-    optout_notice: Boolean(parsed.optout_notice),
-    contact_type: ['email', 'form_only', 'none'].includes(parsed.contact_type) ? parsed.contact_type : 'none',
     industry: typeof parsed.industry === 'string' ? parsed.industry : null,
+    pain_hint: typeof parsed.pain_hint === 'string' ? parsed.pain_hint : null,
   };
 }
 
-module.exports = { createClient, findOfficialWebsite, analyzeCompanyPage, parseJsonResponse, MODEL };
+// 痛み仮説の手がかりだけを専用に探す（他の項目は一切聞かない）。qualifyFromPageに同梱すると
+// AIの"労力"が分散し検出率が下がる傾向が見られたため、専用呼び出しでの効果検証用に用意した。
+// onUsage: 呼び出しごとの usage（コスト集計用）を受け取るコールバック（省略可）。
+async function findPainHint(client, { name, text, onUsage }) {
+  const truncated = text.slice(0, 6000);
+  const message = await client.messages.create({
+    model: MODEL,
+    max_tokens: 300,
+    messages: [
+      {
+        role: 'user',
+        content:
+          `以下は企業「${name}」の公式サイトの本文です。\n` +
+          `手作業・紙ベース・Excel管理・繰り返し作業になっていそうな業務プロセスの具体的な手がかりを、` +
+          `本文に根拠がある範囲で3行程度の箇条書きで拾い出してください。\n` +
+          `推測や一般論で埋めず、本文に書かれている内容のみを根拠にしてください。\n` +
+          `手がかりが見当たらない場合は、無理に作らず "NONE" とだけ答えてください（説明文は不要）。\n\n` +
+          `本文:\n${truncated}`,
+      },
+    ],
+  });
+  if (onUsage) onUsage(message.usage);
+  const text2 = extractText(message).trim();
+  return { hint: text2.includes('NONE') ? null : text2, usage: message.usage };
+}
+
+module.exports = {
+  createClient,
+  findOfficialWebsite,
+  checkOptOut,
+  qualifyFromPage,
+  findPainHint,
+  parseJsonResponse,
+  MODEL,
+};

@@ -1,6 +1,6 @@
 'use strict';
 
-// 注意：findOfficialWebsite / analyzeCompanyPage 自体（実際のAnthropic API呼び出し・Web検索）は
+// 注意：findOfficialWebsite / qualifyFromPage 自体（実際のAnthropic API呼び出し・Web検索）は
 // ANTHROPIC_API_KEYと実サイトへのネットワークアクセスが必要なため、このテストでは検証していない。
 // ここではAI応答の後処理（JSON抽出）という純粋ロジックのみを確認する。
 

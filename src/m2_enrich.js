@@ -5,7 +5,7 @@ const pLimit = require('p-limit');
 const { openDb, updateEnrichment, DEFAULT_DB_PATH } = require('./lib/db');
 const { isAllowedByRobots, USER_AGENT_TOKEN } = require('./lib/robots');
 const { fetchPageWithFallback, findContactLinks, extractEmails, extractPhoneNumbers, USER_AGENT } = require('./lib/scrape');
-const { createClient, findOfficialWebsite, analyzeCompanyPage } = require('./lib/ai');
+const { createClient, findOfficialWebsite } = require('./lib/ai');
 const { createCostTracker } = require('./lib/cost');
 
 const DEFAULT_DELAY_MS = Number(process.env.SCRAPE_DELAY_MS) || 3000;
@@ -90,23 +90,19 @@ async function enrichOne(company, ctx) {
   const combinedHtml = pages.map((p) => p.html).join('\n');
   const emails = ctx.extractEmails(`${combinedHtml}\n${combinedText}`);
   const phones = ctx.extractPhoneNumbers(`${combinedHtml}\n${combinedText}`);
-  const analysis = await ctx.analyzePage(ctx.client, {
-    name: company.name,
-    text: combinedText,
-    onUsage: (usage) => ctx.costTracker.add(usage),
-  });
 
+  // 連絡先種別の判定はAIを使わず無料で行う（メアドの有無は正規表現、フォームの有無は
+  // 「お問い合わせ」等のリンク検出で判定）。事業内容・業種・営業お断り判定・痛みの手がかりは
+  // ここでは取得せず、メアド/フォームが見つかった会社だけを対象にした後段（qualifyCompanies）に委ねる。
   const email = emails[0] || null;
-  const contactType = email ? 'email' : analysis.contact_type;
+  const hasContactLink = ctx.findContactLinks(pages[0].$, pages[0].finalUrl, { limit: 1 }).length > 0;
+  const contactType = email ? 'email' : hasContactLink ? 'form_only' : 'none';
 
   return updateEnrichment(ctx.db, company.id, {
     website_url: websiteUrl,
     email,
     phone: phones[0] || null,
-    industry: analysis.industry,
     contact_type: contactType,
-    business_summary: analysis.business_summary,
-    optout_notice: analysis.optout_notice,
     status: 'enriched',
     exclude_reason: null,
   });
@@ -123,7 +119,6 @@ async function enrichSites(companies, options = {}) {
     anthropicApiKey = process.env.ANTHROPIC_API_KEY,
     client,
     findWebsite = findOfficialWebsite,
-    analyzePage = analyzeCompanyPage,
     fetchPage = fetchPageWithFallback,
     isAllowed = isAllowedByRobots,
     fetchImpl,
@@ -131,7 +126,7 @@ async function enrichSites(companies, options = {}) {
     progressEvery = 50,
   } = options;
 
-  const needsAiClient = findWebsite === findOfficialWebsite || analyzePage === analyzeCompanyPage;
+  const needsAiClient = findWebsite === findOfficialWebsite;
   const resolvedClient = client || (needsAiClient ? createClient(anthropicApiKey) : undefined);
 
   const costTracker = options.costTracker || createCostTracker();
@@ -140,7 +135,6 @@ async function enrichSites(companies, options = {}) {
     db,
     client: resolvedClient,
     findWebsite,
-    analyzePage,
     fetchPage,
     isAllowed,
     fetchImpl,

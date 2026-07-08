@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS companies (
   industry         TEXT,
   contact_type     TEXT,
   business_summary TEXT,
+  pain_hint        TEXT,
   optout_notice    INTEGER,
   status           TEXT,
   exclude_reason   TEXT,
@@ -36,12 +37,13 @@ CREATE TABLE IF NOT EXISTS suppression (
 );
 `;
 
-// 本実装時点のDBファイルには phone / industry が無いため、既存ファイルにも後付けできるようにする。
+// 本実装時点のDBファイルには phone / industry / pain_hint が無いため、既存ファイルにも後付けできるようにする。
 function ensurePhoneIndustryColumns(db) {
   const columns = db.prepare(`PRAGMA table_info(companies)`).all();
   const names = columns.map((c) => c.name);
   if (!names.includes('phone')) db.exec(`ALTER TABLE companies ADD COLUMN phone TEXT`);
   if (!names.includes('industry')) db.exec(`ALTER TABLE companies ADD COLUMN industry TEXT`);
+  if (!names.includes('pain_hint')) db.exec(`ALTER TABLE companies ADD COLUMN pain_hint TEXT`);
 }
 
 function openDb(dbPath = DEFAULT_DB_PATH) {
@@ -91,6 +93,7 @@ function updateEnrichment(db, id, fields) {
     industry: fields.industry !== undefined ? fields.industry : current.industry,
     contact_type: fields.contact_type !== undefined ? fields.contact_type : current.contact_type,
     business_summary: fields.business_summary !== undefined ? fields.business_summary : current.business_summary,
+    pain_hint: fields.pain_hint !== undefined ? fields.pain_hint : current.pain_hint,
     optout_notice: fields.optout_notice !== undefined ? (fields.optout_notice ? 1 : 0) : current.optout_notice,
     status: fields.status !== undefined ? fields.status : current.status,
     exclude_reason: fields.exclude_reason !== undefined ? fields.exclude_reason : current.exclude_reason,
@@ -99,7 +102,7 @@ function updateEnrichment(db, id, fields) {
   const stmt = db.prepare(`
     UPDATE companies SET
       website_url = ?, email = ?, phone = ?, industry = ?, contact_type = ?, business_summary = ?,
-      optout_notice = ?, status = ?, exclude_reason = ?, updated_at = ?
+      pain_hint = ?, optout_notice = ?, status = ?, exclude_reason = ?, updated_at = ?
     WHERE id = ?
     RETURNING *
   `);
@@ -110,6 +113,7 @@ function updateEnrichment(db, id, fields) {
     merged.industry,
     merged.contact_type,
     merged.business_summary,
+    merged.pain_hint,
     merged.optout_notice,
     merged.status,
     merged.exclude_reason,
