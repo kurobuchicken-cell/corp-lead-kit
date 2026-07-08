@@ -127,6 +127,8 @@ async function enrichSites(companies, options = {}) {
     fetchPage = fetchPageWithFallback,
     isAllowed = isAllowedByRobots,
     fetchImpl,
+    // 大量件数を回す際、完走を待たずに途中経過のコストを把握できるようにする（0で無効化）。
+    progressEvery = 50,
   } = options;
 
   const needsAiClient = findWebsite === findOfficialWebsite || analyzePage === analyzeCompanyPage;
@@ -151,8 +153,22 @@ async function enrichSites(companies, options = {}) {
   };
 
   const limit = pLimit(concurrency);
+  let completed = 0;
   try {
-    const results = await Promise.all(companies.map((company) => limit(() => enrichOne(company, ctx))));
+    const results = await Promise.all(
+      companies.map((company) =>
+        limit(async () => {
+          const result = await enrichOne(company, ctx);
+          completed += 1;
+          if (progressEvery && completed % progressEvery === 0) {
+            console.log(
+              `[M2進捗] ${completed}/${companies.length}社 完了・累計コスト 約¥${Math.round(costTracker.spentJpy)}`
+            );
+          }
+          return result;
+        })
+      )
+    );
     // 呼び出し元がresults.lengthや配列アクセスを前提にしている(既存テスト含む)ため配列のまま返し、
     // コスト情報はプロパティとして追加する。
     results.costJpy = costTracker.spentJpy;
