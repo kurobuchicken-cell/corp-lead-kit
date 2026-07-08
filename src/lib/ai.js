@@ -68,7 +68,8 @@ async function analyzeCompanyPage(client, { name, text, onUsage }) {
           `{\n` +
           `  "business_summary": "事業内容を2〜3行で要約した文字列",\n` +
           `  "optout_notice": true または false（「営業メールお断り」「営業目的の連絡・訪問はご遠慮ください」等の表示があればtrue）,\n` +
-          `  "contact_type": "email" または "form_only" または "none"（メールアドレスの記載があればemail、問い合わせフォームのみならform_only、どちらも無ければnone）\n` +
+          `  "contact_type": "email" または "form_only" または "none"（メールアドレスの記載があればemail、問い合わせフォームのみならform_only、どちらも無ければnone）,\n` +
+          `  "industry": "業種を10字程度の短い言葉で（例: 不動産仲介、機械部品商社、ITコンサルティング）。判断できなければnull"\n` +
           `}\n\n` +
           `本文:\n${truncated}`,
       },
@@ -82,6 +83,7 @@ async function analyzeCompanyPage(client, { name, text, onUsage }) {
     business_summary: typeof parsed.business_summary === 'string' ? parsed.business_summary : null,
     optout_notice: Boolean(parsed.optout_notice),
     contact_type: ['email', 'form_only', 'none'].includes(parsed.contact_type) ? parsed.contact_type : 'none',
+    industry: typeof parsed.industry === 'string' ? parsed.industry : null,
   };
 }
 

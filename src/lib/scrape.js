@@ -14,6 +14,9 @@ const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 // 誤検出になりやすいドメイン・パターン（解析タグ・画像CDN・サンプル用ドメイン等）を除外する。
 const EMAIL_FALSE_POSITIVE_RE = /(sentry\.io|wixpress\.com|w3\.org|schema\.org|example\.(com|jp)|google-analytics\.com|godaddy\.com|\.(png|jpg|jpeg|gif|svg|webp)$)/i;
 
+// 日本の固定電話・フリーダイヤル・携帯電話番号（ハイフン区切り）。FAXとの区別はしない。
+const PHONE_RE = /0\d{1,4}-\d{1,4}-\d{3,4}/g;
+
 function htmlToText($) {
   $('script, style, noscript').remove();
   return $('body').text().replace(/\s+/g, ' ').trim();
@@ -103,6 +106,11 @@ function extractEmails(text) {
   return unique.filter((e) => !EMAIL_FALSE_POSITIVE_RE.test(e));
 }
 
+function extractPhoneNumbers(text) {
+  const matches = text.match(PHONE_RE) || [];
+  return [...new Set(matches)];
+}
+
 module.exports = {
   USER_AGENT,
   fetchHtml,
@@ -110,6 +118,7 @@ module.exports = {
   fetchPageWithFallback,
   findContactLinks,
   extractEmails,
+  extractPhoneNumbers,
   htmlToText,
   looksLikeThinSpaShell,
 };

@@ -4,7 +4,7 @@ const pLimit = require('p-limit');
 
 const { openDb, updateEnrichment, DEFAULT_DB_PATH } = require('./lib/db');
 const { isAllowedByRobots, USER_AGENT_TOKEN } = require('./lib/robots');
-const { fetchPageWithFallback, findContactLinks, extractEmails, USER_AGENT } = require('./lib/scrape');
+const { fetchPageWithFallback, findContactLinks, extractEmails, extractPhoneNumbers, USER_AGENT } = require('./lib/scrape');
 const { createClient, findOfficialWebsite, analyzeCompanyPage } = require('./lib/ai');
 const { createCostTracker } = require('./lib/cost');
 
@@ -89,6 +89,7 @@ async function enrichOne(company, ctx) {
   const combinedText = pages.map((p) => p.text).join('\n\n');
   const combinedHtml = pages.map((p) => p.html).join('\n');
   const emails = ctx.extractEmails(`${combinedHtml}\n${combinedText}`);
+  const phones = ctx.extractPhoneNumbers(`${combinedHtml}\n${combinedText}`);
   const analysis = await ctx.analyzePage(ctx.client, {
     name: company.name,
     text: combinedText,
@@ -101,6 +102,8 @@ async function enrichOne(company, ctx) {
   return updateEnrichment(ctx.db, company.id, {
     website_url: websiteUrl,
     email,
+    phone: phones[0] || null,
+    industry: analysis.industry,
     contact_type: contactType,
     business_summary: analysis.business_summary,
     optout_notice: analysis.optout_notice,
@@ -142,6 +145,7 @@ async function enrichSites(companies, options = {}) {
     timeoutMs,
     findContactLinks,
     extractEmails,
+    extractPhoneNumbers,
     costTracker,
     pace: createPacer(delayMs),
   };

@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS companies (
   source           TEXT,
   website_url      TEXT,
   email            TEXT,
+  phone            TEXT,
+  industry         TEXT,
   contact_type     TEXT,
   business_summary TEXT,
   optout_notice    INTEGER,
@@ -34,10 +36,19 @@ CREATE TABLE IF NOT EXISTS suppression (
 );
 `;
 
+// 本実装時点のDBファイルには phone / industry が無いため、既存ファイルにも後付けできるようにする。
+function ensurePhoneIndustryColumns(db) {
+  const columns = db.prepare(`PRAGMA table_info(companies)`).all();
+  const names = columns.map((c) => c.name);
+  if (!names.includes('phone')) db.exec(`ALTER TABLE companies ADD COLUMN phone TEXT`);
+  if (!names.includes('industry')) db.exec(`ALTER TABLE companies ADD COLUMN industry TEXT`);
+}
+
 function openDb(dbPath = DEFAULT_DB_PATH) {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const db = new DatabaseSync(dbPath);
   db.exec(SCHEMA);
+  ensurePhoneIndustryColumns(db);
   return db;
 }
 
@@ -76,6 +87,8 @@ function updateEnrichment(db, id, fields) {
   const merged = {
     website_url: fields.website_url !== undefined ? fields.website_url : current.website_url,
     email: fields.email !== undefined ? fields.email : current.email,
+    phone: fields.phone !== undefined ? fields.phone : current.phone,
+    industry: fields.industry !== undefined ? fields.industry : current.industry,
     contact_type: fields.contact_type !== undefined ? fields.contact_type : current.contact_type,
     business_summary: fields.business_summary !== undefined ? fields.business_summary : current.business_summary,
     optout_notice: fields.optout_notice !== undefined ? (fields.optout_notice ? 1 : 0) : current.optout_notice,
@@ -85,7 +98,7 @@ function updateEnrichment(db, id, fields) {
 
   const stmt = db.prepare(`
     UPDATE companies SET
-      website_url = ?, email = ?, contact_type = ?, business_summary = ?,
+      website_url = ?, email = ?, phone = ?, industry = ?, contact_type = ?, business_summary = ?,
       optout_notice = ?, status = ?, exclude_reason = ?, updated_at = ?
     WHERE id = ?
     RETURNING *
@@ -93,6 +106,8 @@ function updateEnrichment(db, id, fields) {
   return stmt.get(
     merged.website_url,
     merged.email,
+    merged.phone,
+    merged.industry,
     merged.contact_type,
     merged.business_summary,
     merged.optout_notice,

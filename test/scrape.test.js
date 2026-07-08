@@ -9,6 +9,7 @@ const {
   fetchPageWithFallback,
   findContactLinks,
   extractEmails,
+  extractPhoneNumbers,
   looksLikeThinSpaShell,
 } = require('../src/lib/scrape');
 
@@ -28,6 +29,16 @@ test('extractEmails: 誤検出パターンと本物のメールが混在して�
   const text = '解析用: err@sentry.io 連絡先: contact@real-company.jp';
   const emails = extractEmails(text);
   assert.deepEqual(emails, ['contact@real-company.jp']);
+});
+
+test('extractPhoneNumbers: ハイフン区切りの電話番号を抽出し、重複は除去する', () => {
+  const text = 'TEL: 03-1234-5678 / FAX: 03-1234-5678 フリーダイヤル: 0120-123-456';
+  const phones = extractPhoneNumbers(text);
+  assert.deepEqual(phones, ['03-1234-5678', '0120-123-456']);
+});
+
+test('extractPhoneNumbers: 電話番号が本文に無ければ空配列を返す', () => {
+  assert.deepEqual(extractPhoneNumbers('お問い合わせはフォームより承っております。'), []);
 });
 
 test('findContactLinks: 会社概要・お問い合わせ等のキーワードを含むリンクのみ拾う', () => {
