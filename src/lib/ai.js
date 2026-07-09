@@ -21,11 +21,14 @@ function extractText(message) {
 
 // 社名＋所在地からWeb検索ツールで公式サイトURLを推定する。見つからない場合は null。
 // onUsage: 呼び出しごとの usage（コスト集計用）を受け取るコールバック（省略可）。
-async function findOfficialWebsite(client, { name, address, onUsage }) {
+// maxUses: web_searchツールの最大呼び出し回数。3→1でコスト¥6.12→¥3.29/社(-46%)、
+// 発見率25.0%→21.0%(-4pt、同一100社ペア比較でMcNemar exact p≈0.22、統計的有意差なし)。
+// コスト効果を優先し1をデフォルトに採用（2026-07-09検証、SESSION_LOG.md参照）。
+async function findOfficialWebsite(client, { name, address, onUsage, maxUses = 1 }) {
   const message = await client.messages.create({
     model: MODEL,
     max_tokens: 300,
-    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
+    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: maxUses }],
     messages: [
       {
         role: 'user',
